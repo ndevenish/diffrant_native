@@ -4,7 +4,7 @@
 //! `read_hdf5_metadata`).  The main changes are:
 //!
 //! - No axum/HTTP coupling — returns plain Rust types.
-//! - Metadata field `panel_distance` (mm) matches diffrant's `ImageMetadata`.
+//! - Metadata field `panel_distance_mm` matches diffrant's `ImageMetadata`.
 //! - `NxsReader` stores only the path; the HDF5 file is opened per call so the
 //!   struct is `Send + Sync` without a mutex around the file handle.
 
@@ -189,7 +189,7 @@ fn read_nxs_metadata(path: &Path) -> Result<ImageMetadata> {
     );
 
     Ok(ImageMetadata {
-        panel_distance,
+        panel_distance_mm: panel_distance,
         beam_center: [beam_cx, beam_cy],
         pixel_size,
         panel_size_fast_slow: [width, height],

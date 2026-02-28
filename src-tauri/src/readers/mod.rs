@@ -9,7 +9,7 @@ pub mod nxs;
 #[derive(Debug, Clone, Serialize)]
 pub struct ImageMetadata {
     /// Sample-to-detector distance in mm
-    pub panel_distance: f64,
+    pub panel_distance_mm: f64,
     /// Beam centre in pixels [fast, slow] / [x, y]
     pub beam_center: [f64; 2],
     /// Pixel size in mm
