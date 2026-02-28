@@ -126,11 +126,11 @@ fn read_nxs_metadata(path: &Path) -> Result<ImageMetadata> {
 
     let detector = file.group("entry/instrument/detector")?;
 
-    // Distance: read value + units attribute, convert to mm
-    let panel_distance = detector
-        .dataset("distance")
-        .ok()
-        .and_then(|ds| {
+    // Distance: try "distance" then "detector_distance"; read value + units, convert to mm
+    let panel_distance = ["distance", "detector_distance"]
+        .iter()
+        .find_map(|name| {
+            let ds = detector.dataset(name).ok()?;
             let raw = ds
                 .read_scalar::<f64>()
                 .or_else(|_| ds.read_scalar::<f32>().map(|v| v as f64))
