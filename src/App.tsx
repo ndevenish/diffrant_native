@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { Diffrant } from 'diffrant';
+import 'diffrant/style.css';
 import type { ViewerState } from 'diffrant';
 import './App.css';
 
