@@ -1,18 +1,26 @@
 #!/usr/bin/env bash
-# Prepare bundle-libs/ for a self-contained macOS release build.
+# Collect all non-system dylib dependencies of libhdf5 and liblz4 (transitively)
+# into bundle-libs/lib/, ready for Tauri to bundle into Contents/Frameworks/.
 #
-# What it does:
-#   1. Copies libhdf5 and liblz4 dylibs out of ENV/ and fixes their install
-#      names to @rpath/… so Tauri can wire them into Contents/Frameworks/.
-#   2. Copies the HDF5 filter plugins (bshuf, lz4, bz2) into bundle-libs/plugins/.
-#   3. Symlinks ENV/include into bundle-libs/include so that cargo build can
-#      find the HDF5 headers when HDF5_DIR is set to bundle-libs/.
+# How it works
+# ------------
+# Conda-forge builds already set each dylib's install name to
+# @rpath/SHORT_NAME and add @loader_path/ as LC_RPATH. This means:
+#
+#   - When the main binary runs, its @executable_path/../Frameworks rpath
+#     makes all deps findable in Contents/Frameworks/.
+#   - When a bundled dylib (e.g. libhdf5) loads one of its own deps
+#     (e.g. @rpath/libcrypto.3.dylib), @loader_path/ also resolves to
+#     Frameworks/ — so siblings find each other without any path surgery.
+#
+# We therefore just need to copy each dylib under its SHORT_NAME (the part
+# after @rpath/ in its install name). No install_name_tool edits required.
 #
 # Usage:
 #   ./scripts/prepare-bundle-libs.sh [path-to-env]   (default: ./ENV)
 #
-# After running, build with:
-#   HDF5_DIR=$(pwd)/bundle-libs npm run tauri build
+# After running this, build the release bundle with:
+#   HDF5_DIR=$(pwd)/ENV npm run tauri build
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -23,38 +31,94 @@ OUT="./bundle-libs"
 LIB_OUT="$OUT/lib"
 PL_OUT="$OUT/plugins"
 
-echo "==> Preparing bundle libs from $ENV_DIR"
+echo "==> Collecting dylib deps from $ENV_DIR"
 mkdir -p "$LIB_OUT" "$PL_OUT"
 
-# ── Helper: resolve symlink to the real versioned file ───────────────────────
-real_lib() { realpath "$1"; }
+# ── Recursive dep collection (Python for reliability) ────────────────────────
+python3 - "$ENV_DIR" "$LIB_OUT" << 'PYEOF'
+import sys, subprocess, os, shutil
 
-# ── libhdf5 ──────────────────────────────────────────────────────────────────
-HDF5_REAL=$(real_lib "$ENV_DIR/lib/libhdf5.dylib")
-HDF5_NAME=$(basename "$HDF5_REAL")            # e.g. libhdf5.310.dylib
+env_dir, lib_out = sys.argv[1], sys.argv[2]
+env_lib = os.path.join(env_dir, 'lib')
 
-echo "  libhdf5: $HDF5_NAME"
-cp "$HDF5_REAL" "$LIB_OUT/$HDF5_NAME"
-install_name_tool -id "@rpath/$HDF5_NAME" "$LIB_OUT/$HDF5_NAME"
-ln -sf "$HDF5_NAME" "$LIB_OUT/libhdf5.dylib"
+def otool_L(path):
+    try:
+        out = subprocess.check_output(['otool', '-L', path], stderr=subprocess.DEVNULL).decode()
+        return [line.strip().split()[0] for line in out.strip().split('\n')[1:] if line.strip()]
+    except Exception:
+        return []
 
-# ── liblz4 ───────────────────────────────────────────────────────────────────
-LZ4_REAL=$(real_lib "$ENV_DIR/lib/liblz4.dylib")
-LZ4_NAME=$(basename "$LZ4_REAL")              # e.g. liblz4.1.10.0.dylib
+def otool_D(path):
+    try:
+        out = subprocess.check_output(['otool', '-D', path], stderr=subprocess.DEVNULL).decode()
+        lines = [l.strip() for l in out.strip().split('\n') if l.strip()]
+        return lines[1] if len(lines) > 1 else None
+    except Exception:
+        return None
 
-echo "  liblz4: $LZ4_NAME"
-cp "$LZ4_REAL" "$LIB_OUT/$LZ4_NAME"
-install_name_tool -id "@rpath/$LZ4_NAME" "$LIB_OUT/$LZ4_NAME"
-ln -sf "$LZ4_NAME" "$LIB_OUT/liblz4.dylib"
+def is_system(dep):
+    return (dep.startswith('/usr/lib') or dep.startswith('/System/') or
+            '/CoreFoundation' in dep or '/SystemConfiguration' in dep)
 
-# Create the liblz4.1.dylib compatibility symlink that plugins reference
-LZ4_COMPAT="liblz4.1.dylib"
-ln -sf "$LZ4_NAME" "$LIB_OUT/$LZ4_COMPAT"
+def resolve(dep, env_lib_dir):
+    """Resolve a dep path (absolute or @rpath/@loader_path) to a real file."""
+    if dep.startswith('/'):
+        r = os.path.realpath(dep)
+        return r if os.path.exists(r) else None
+    name = dep.split('/')[-1]
+    p = os.path.join(env_lib_dir, name)
+    if os.path.exists(p):
+        return os.path.realpath(p)
+    return None
 
-# ── HDF5 include headers (for cargo build) ───────────────────────────────────
+plugin_dir = os.path.join(env_lib, 'hdf5', 'plugin')
+seeds = [
+    os.path.realpath(os.path.join(env_lib, 'libhdf5.dylib')),
+    os.path.realpath(os.path.join(env_lib, 'liblz4.dylib')),
+] + [
+    os.path.realpath(os.path.join(plugin_dir, f))
+    for f in os.listdir(plugin_dir)
+    if f.endswith('.so')
+]
+
+seen = set()
+queue = list(seeds)
+to_bundle = []  # list of (real_path, dest_name)
+
+while queue:
+    lib = queue.pop(0)
+    if lib in seen:
+        continue
+    seen.add(lib)
+
+    # Only bundle proper dylibs (not the .so plugins — those go to PL_OUT)
+    if lib.endswith('.dylib'):
+        install_name = otool_D(lib)
+        if install_name and install_name.startswith('@rpath/'):
+            dest_name = install_name[len('@rpath/'):]
+        else:
+            dest_name = os.path.basename(lib)
+        to_bundle.append((lib, dest_name))
+
+    for dep in otool_L(lib):
+        if is_system(dep):
+            continue
+        resolved = resolve(dep, env_lib)
+        if resolved and resolved not in seen:
+            queue.append(resolved)
+
+print(f"  Bundling {len(to_bundle)} dylibs:")
+for real, dest in sorted(to_bundle, key=lambda x: x[1]):
+    dest_path = os.path.join(lib_out, dest)
+    print(f"    {dest}")
+    shutil.copy2(real, dest_path)
+
+PYEOF
+
+# ── HDF5 include headers (for cargo build with HDF5_DIR=bundle-libs) ─────────
 ln -sfn "$ENV_DIR/include" "$OUT/include"
 
-# ── Filter plugins ───────────────────────────────────────────────────────────
+# ── Filter plugins ────────────────────────────────────────────────────────────
 echo "  plugins:"
 for plugin in "$ENV_DIR/lib/hdf5/plugin/"*.so; do
     name=$(basename "$plugin")
@@ -63,5 +127,7 @@ for plugin in "$ENV_DIR/lib/hdf5/plugin/"*.so; do
 done
 
 echo ""
-echo "==> bundle-libs/ ready. To build a release app:"
-echo "    HDF5_DIR=$(pwd)/bundle-libs npm run tauri build"
+echo "==> bundle-libs/ ready."
+echo ""
+echo "Build the release app with:"
+echo "    HDF5_DIR=$(pwd)/ENV npm run tauri build"

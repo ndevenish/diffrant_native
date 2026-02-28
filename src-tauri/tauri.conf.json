@@ -30,8 +30,22 @@
     },
     "macOS": {
       "frameworks": [
+        "../bundle-libs/lib/libbz2.dylib",
+        "../bundle-libs/lib/libcom_err.3.0.dylib",
+        "../bundle-libs/lib/libcrypto.3.dylib",
+        "../bundle-libs/lib/libcurl.4.dylib",
+        "../bundle-libs/lib/libgssapi_krb5.2.2.dylib",
         "../bundle-libs/lib/libhdf5.310.dylib",
-        "../bundle-libs/lib/liblz4.1.10.0.dylib"
+        "../bundle-libs/lib/libk5crypto.3.1.dylib",
+        "../bundle-libs/lib/libkrb5.3.3.dylib",
+        "../bundle-libs/lib/libkrb5support.1.1.dylib",
+        "../bundle-libs/lib/liblz4.1.dylib",
+        "../bundle-libs/lib/libnghttp2.14.dylib",
+        "../bundle-libs/lib/libssh2.1.dylib",
+        "../bundle-libs/lib/libssl.3.dylib",
+        "../bundle-libs/lib/libsz.2.dylib",
+        "../bundle-libs/lib/libz.1.dylib",
+        "../bundle-libs/lib/libzstd.1.dylib"
       ]
     }
   }

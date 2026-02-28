@@ -107,8 +107,14 @@ RUST_LOG=diffrant_native=debug npm run tauri dev
 ## Building a release app bundle
 
 The Rust binary dynamically links against `libhdf5`, and the HDF5 filter
-plugins (`libh5bshuf`, `libh5lz4`) are loaded at runtime via `dlopen`. Both
-must be bundled inside the `.app` so the app is self-contained.
+plugins (`libh5bshuf`, `libh5lz4`, `libh5bz2`) are loaded at runtime via
+`dlopen`. All of these — plus their transitive dependencies (libcrypto,
+libssl, libcurl, and so on) — must be bundled inside the `.app`.
+
+conda-forge builds already set each dylib's install name to
+`@rpath/SHORT_NAME` and embed `@loader_path/` in their LC_RPATH, so once
+everything is in `Contents/Frameworks/` they resolve each other without any
+`install_name_tool` surgery.
 
 ### Step 1 — prepare the bundle libs (once per ENV update)
 
@@ -117,36 +123,39 @@ must be bundled inside the `.app` so the app is self-contained.
 ```
 
 This script:
-- Copies `libhdf5.dylib` and `liblz4.dylib` from `ENV/lib/` into
-  `bundle-libs/lib/` and sets their install names to `@rpath/…` so macOS
-  can find them inside `Contents/Frameworks/`.
-- Copies the three filter plugins into `bundle-libs/plugins/`.
-- Symlinks `ENV/include/` into `bundle-libs/include/` so the compiler can
-  find the HDF5 headers.
+- Walks the full dependency tree of `libhdf5` and `liblz4` (and the three
+  filter plugins) using `otool -L`.
+- Copies each non-system dylib into `bundle-libs/lib/` under its install
+  name (the short `@rpath/NAME` form) so Tauri bundles it with the right
+  filename.
+- Copies the filter plugins into `bundle-libs/plugins/`.
+- Symlinks `ENV/include/` into `bundle-libs/include/` (used during
+  compilation; see Step 2).
 
 The `bundle-libs/` directory is gitignored; regenerate it whenever the conda
 environment is updated.
 
-> **Note:** `install_name_tool` invalidates the original conda-forge code
-> signatures on the dylibs. For distribution via the Mac App Store or to
-> users on Macs with Gatekeeper enabled you will need a Developer ID
-> certificate so Tauri can re-sign and notarize the bundle. For internal /
-> lab use, ad-hoc or unsigned builds work fine.
+> **Signing note:** For distribution via the Mac App Store or to users on
+> Macs with Gatekeeper enabled you will need a Developer ID certificate so
+> Tauri can re-sign and notarize the bundle. For internal / lab use,
+> ad-hoc or unsigned builds work fine.
 
 ### Step 2 — build
 
 ```bash
-HDF5_DIR=$(pwd)/bundle-libs npm run tauri build
+HDF5_DIR=$(pwd)/ENV npm run tauri build
 ```
 
-`HDF5_DIR` tells the `hdf5-metno-sys` build script where to find the
-headers and the library to link against. Tauri's bundler then:
+`HDF5_DIR` points to the conda environment so the `hdf5-metno-sys` build
+script finds the original (unmodified) headers and library to link against.
+Tauri's bundler then:
 
-1. Copies `libhdf5.310.dylib` and `liblz4.1.10.0.dylib` into
-   `Contents/Frameworks/` and rewires the binary's dependency references to
-   use `@rpath/…`.
-2. Copies the filter plugins into `Contents/Resources/hdf5-plugins/`.
-3. At runtime, `lib.rs` sets `HDF5_PLUGIN_PATH` to the bundled plugin
+1. Copies all 16 dylibs listed in `bundle.macOS.frameworks` (from
+   `bundle-libs/lib/`) into `Contents/Frameworks/`.
+2. Rewires the binary's `libhdf5` dependency to `@rpath/libhdf5.310.dylib`
+   and adds `@executable_path/../Frameworks` to the binary's LC_RPATH.
+3. Copies the filter plugins into `Contents/Resources/hdf5-plugins/`.
+4. At runtime, `lib.rs` sets `HDF5_PLUGIN_PATH` to the bundled plugin
    directory before any HDF5 reads occur.
 
 The finished bundle is in `src-tauri/target/release/bundle/`:
