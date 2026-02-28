@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { Diffrant } from 'diffrant';
@@ -28,6 +28,7 @@ function App() {
   const [frameCount, setFrameCount] = useState<number | null>(null);
   const [viewerState, setViewerState] = useState<ViewerState>(DEFAULT_VIEWER_STATE);
   const [autoExposureTrigger, setAutoExposureTrigger] = useState(0);
+  const hasOpenedFile = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,14 +50,15 @@ function App() {
     try {
       setError(null);
       const result = await invoke<OpenFileResult>('open_file', { path });
-      setFilePath(prev => {
-        // Auto-expose on the very first file opened.
-        if (prev === null) setAutoExposureTrigger(t => t + 1);
-        return path;
-      });
+      setFilePath(path);
       setFrameCount(result.frame_count);
       setFrameIndex(0);
       setFileVersion(v => v + 1);
+      // Auto-expose on the very first file opened.
+      if (!hasOpenedFile.current) {
+        hasOpenedFile.current = true;
+        setAutoExposureTrigger(t => t + 1);
+      }
     } catch (e) {
       setError(String(e));
     }
