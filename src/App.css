@@ -1,0 +1,112 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: #252525;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+  min-height: 38px;
+}
+
+.open-btn {
+  padding: 4px 12px;
+  background: #3a3a3a;
+  border: 1px solid #555;
+  border-radius: 4px;
+  color: #eee;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.open-btn:hover {
+  background: #4a4a4a;
+}
+
+.filename {
+  font-size: 13px;
+  color: #aaa;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.frame-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.frame-nav button {
+  padding: 2px 8px;
+  background: #3a3a3a;
+  border: 1px solid #555;
+  border-radius: 3px;
+  color: #eee;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.frame-nav button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.frame-nav button:not(:disabled):hover {
+  background: #4a4a4a;
+}
+
+.frame-nav span {
+  font-size: 13px;
+  color: #ccc;
+  white-space: nowrap;
+}
+
+.error-msg {
+  color: #f66;
+  font-size: 12px;
+  flex: 1;
+}
+
+.viewer {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.splash {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+  color: #888;
+  font-size: 15px;
+}
+
+.splash button {
+  padding: 8px 20px;
+  background: #3a3a3a;
+  border: 1px solid #555;
+  border-radius: 5px;
+  color: #eee;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.splash button:hover {
+  background: #4a4a4a;
+}
