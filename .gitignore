@@ -18,6 +18,5 @@ src-tauri/gen/
 .DS_Store
 Thumbs.db
 
-# Env
-.env
+# Env (machine-specific overrides only; .env is committed)
 .env.local

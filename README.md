@@ -74,6 +74,16 @@ sudo dnf install webkit2gtk4.1-devel libappindicator-gtk3-devel librsvg2-devel
 
 ## Running in development
 
+The project ships a `.env` file that sets `HDF5_PLUGIN_PATH` to
+`./ENV/lib/hdf5/plugin`.  Create a conda environment at `./ENV` with the
+required packages and this will be picked up automatically:
+
+```bash
+conda create -p ./ENV -c conda-forge hdf5 hdf5-external-filter-plugins
+```
+
+Then:
+
 ```bash
 # 1. Install JavaScript dependencies (only needed once, or after package changes)
 npm install
