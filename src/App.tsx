@@ -26,6 +26,7 @@ function App() {
   const [frameIndex, setFrameIndex] = useState(0);
   const [frameCount, setFrameCount] = useState<number | null>(null);
   const [viewerState, setViewerState] = useState<ViewerState>(DEFAULT_VIEWER_STATE);
+  const [autoExposureTrigger, setAutoExposureTrigger] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -47,7 +48,11 @@ function App() {
     try {
       setError(null);
       const result = await invoke<OpenFileResult>('open_file', { path });
-      setFilePath(path);
+      setFilePath(prev => {
+        // Auto-expose on the very first file opened.
+        if (prev === null) setAutoExposureTrigger(t => t + 1);
+        return path;
+      });
       setFrameCount(result.frame_count);
       setFrameIndex(0);
       setFileVersion(v => v + 1);
@@ -61,6 +66,7 @@ function App() {
     () => setFrameIndex(i => Math.min((frameCount ?? 1) - 1, i + 1)),
     [frameCount],
   );
+  const autoExposure = useCallback(() => setAutoExposureTrigger(t => t + 1), []);
 
   if (!serverPort) {
     return (
@@ -89,6 +95,7 @@ function App() {
             <span className="filename" title={filePath}>
               {filePath.split('/').pop()}
             </span>
+            <button onClick={autoExposure}>Auto</button>
             {frameCount !== null && frameCount > 1 && (
               <div className="frame-nav">
                 <button onClick={prevFrame} disabled={frameIndex === 0}>
@@ -115,6 +122,7 @@ function App() {
             imageNumber={frameIndex}
             viewerState={viewerState}
             onViewerStateChange={setViewerState}
+            autoExposureTrigger={autoExposureTrigger}
           />
         ) : (
           <div className="splash">
