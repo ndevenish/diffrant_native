@@ -8,6 +8,12 @@ dist-ssr/
 src-tauri/target/
 src-tauri/gen/
 
+# Generated bundle libs (run scripts/prepare-bundle-libs.sh to create)
+bundle-libs/
+
+# Conda environment
+ENV/
+
 # Editor
 .vscode/
 .idea/

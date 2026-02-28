@@ -106,23 +106,56 @@ RUST_LOG=diffrant_native=debug npm run tauri dev
 
 ## Building a release app bundle
 
+The Rust binary dynamically links against `libhdf5`, and the HDF5 filter
+plugins (`libh5bshuf`, `libh5lz4`) are loaded at runtime via `dlopen`. Both
+must be bundled inside the `.app` so the app is self-contained.
+
+### Step 1 — prepare the bundle libs (once per ENV update)
+
 ```bash
-npm run tauri build
+./scripts/prepare-bundle-libs.sh
 ```
 
-This produces a self-contained, optimised application bundle in
-`src-tauri/target/release/bundle/`:
+This script:
+- Copies `libhdf5.dylib` and `liblz4.dylib` from `ENV/lib/` into
+  `bundle-libs/lib/` and sets their install names to `@rpath/…` so macOS
+  can find them inside `Contents/Frameworks/`.
+- Copies the three filter plugins into `bundle-libs/plugins/`.
+- Symlinks `ENV/include/` into `bundle-libs/include/` so the compiler can
+  find the HDF5 headers.
+
+The `bundle-libs/` directory is gitignored; regenerate it whenever the conda
+environment is updated.
+
+> **Note:** `install_name_tool` invalidates the original conda-forge code
+> signatures on the dylibs. For distribution via the Mac App Store or to
+> users on Macs with Gatekeeper enabled you will need a Developer ID
+> certificate so Tauri can re-sign and notarize the bundle. For internal /
+> lab use, ad-hoc or unsigned builds work fine.
+
+### Step 2 — build
+
+```bash
+HDF5_DIR=$(pwd)/bundle-libs npm run tauri build
+```
+
+`HDF5_DIR` tells the `hdf5-metno-sys` build script where to find the
+headers and the library to link against. Tauri's bundler then:
+
+1. Copies `libhdf5.310.dylib` and `liblz4.1.10.0.dylib` into
+   `Contents/Frameworks/` and rewires the binary's dependency references to
+   use `@rpath/…`.
+2. Copies the filter plugins into `Contents/Resources/hdf5-plugins/`.
+3. At runtime, `lib.rs` sets `HDF5_PLUGIN_PATH` to the bundled plugin
+   directory before any HDF5 reads occur.
+
+The finished bundle is in `src-tauri/target/release/bundle/`:
 
 | Platform | Output |
 |----------|--------|
 | macOS | `macos/Diffrant.app` and a `.dmg` installer |
 | Linux | `.deb`, `.rpm`, and an AppImage |
 | Windows | `.msi` and NSIS `.exe` installer |
-
-The built app embeds the compiled frontend and Rust binary. The only
-runtime dependency that is **not** bundled is the HDF5 C library and any
-filter plugins — these must be present on the target machine (e.g. via
-conda-forge).
 
 ### Targeting a single format
 

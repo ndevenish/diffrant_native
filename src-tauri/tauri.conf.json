@@ -24,6 +24,15 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": []
+    "icon": [],
+    "resources": {
+      "../bundle-libs/plugins/": "hdf5-plugins/"
+    },
+    "macOS": {
+      "frameworks": [
+        "../bundle-libs/lib/libhdf5.310.dylib",
+        "../bundle-libs/lib/liblz4.1.10.0.dylib"
+      ]
+    }
   }
 }

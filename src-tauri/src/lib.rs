@@ -25,6 +25,23 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            // Point HDF5 at the bundled filter plugins.
+            // In a release build the plugins are in Contents/Resources/hdf5-plugins/.
+            // In dev mode this directory won't exist, so we fall back to whatever
+            // HDF5_PLUGIN_PATH is already set (e.g. from the .env file).
+            if let Ok(resource_dir) = app.path().resource_dir() {
+                let plugin_dir = resource_dir.join("hdf5-plugins");
+                if plugin_dir.exists() {
+                    // SAFETY: called on the main thread before any other threads
+                    // have had a chance to call getenv, so this is safe in practice.
+                    #[allow(unused_unsafe)]
+                    unsafe {
+                        std::env::set_var("HDF5_PLUGIN_PATH", &plugin_dir);
+                    }
+                    tracing::info!("HDF5_PLUGIN_PATH -> {}", plugin_dir.display());
+                }
+            }
+
             let reader: SharedReader = Arc::new(Mutex::new(None));
 
             // Bind on an OS-assigned port before starting the async server.
