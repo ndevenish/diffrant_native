@@ -148,9 +148,23 @@ fn read_nxs_metadata(path: &Path) -> Result<ImageMetadata> {
         })
         .unwrap_or(0.0);
 
-    // Pixel size: stored in metres, convert to mm
-    let pixel_size = read_scalar_f64(&detector, "x_pixel_size")
-        .map(|v| v * 1000.0)
+    // Pixel size: read value + units attribute, convert to mm
+    let pixel_size = detector
+        .dataset("x_pixel_size")
+        .ok()
+        .and_then(|ds| {
+            let raw = ds
+                .read_scalar::<f64>()
+                .or_else(|_| ds.read_scalar::<f32>().map(|v| v as f64))
+                .ok()?;
+            let units = read_dataset_attr_string(&ds, "units").unwrap_or_else(|| "m".to_owned());
+            let mm = match units.to_lowercase().as_str() {
+                "mm" => raw,
+                "cm" => raw * 10.0,
+                "m" | _ => raw * 1000.0,
+            };
+            Some(mm)
+        })
         .unwrap_or(0.075);
 
     // Beam centre in pixels
