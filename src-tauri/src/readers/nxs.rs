@@ -131,9 +131,12 @@ fn read_nxs_metadata(path: &Path) -> Result<ImageMetadata> {
         .iter()
         .find_map(|name| {
             let ds = detector.dataset(name).ok()?;
+            // Try scalar first, then 1-element array (shape {1})
             let raw = ds
                 .read_scalar::<f64>()
                 .or_else(|_| ds.read_scalar::<f32>().map(|v| v as f64))
+                .or_else(|_| ds.read_1d::<f64>().map(|a| a[0]))
+                .or_else(|_| ds.read_1d::<f32>().map(|a| a[0] as f64))
                 .ok()?;
             let units = read_dataset_attr_string(&ds, "units").unwrap_or_else(|| "m".to_owned());
             let mm = match units.to_lowercase().as_str() {
