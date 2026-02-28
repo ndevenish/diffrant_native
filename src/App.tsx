@@ -51,7 +51,6 @@ function App() {
       setFrameCount(result.frame_count);
       setFrameIndex(0);
       setFileVersion(v => v + 1);
-      setViewerState(DEFAULT_VIEWER_STATE);
     } catch (e) {
       setError(String(e));
     }
