@@ -22,7 +22,7 @@ pub fn create_router(reader: SharedReader) -> Router {
 
     Router::new()
         .route("/metadata", axum::routing::get(get_metadata))
-        .route("/image/:frame", axum::routing::get(get_image))
+        .route("/image/{frame}", axum::routing::get(get_image))
         .with_state(ServerState { reader })
         .layer(cors)
 }

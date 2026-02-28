@@ -27,9 +27,11 @@ pub fn run() {
         .setup(|app| {
             let reader: SharedReader = Arc::new(Mutex::new(None));
 
-            // Bind on an OS-assigned port before starting the async server
+            // Bind on an OS-assigned port before starting the async server.
+            // Must be set to non-blocking before handing to tokio.
             let std_listener = std::net::TcpListener::bind("127.0.0.1:0")?;
             let port = std_listener.local_addr()?.port();
+            std_listener.set_nonblocking(true)?;
             tracing::info!("Starting embedded HTTP server on port {port}");
 
             let router = server::create_router(reader.clone());
