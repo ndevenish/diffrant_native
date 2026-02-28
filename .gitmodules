@@ -1,0 +1,3 @@
+[submodule "diffrant"]
+	path = diffrant
+	url = https://github.com/ndevenish/diffrant.git
